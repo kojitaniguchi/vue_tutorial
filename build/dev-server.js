@@ -6,33 +6,24 @@ if (!process.env.NODE_ENV) {
   process.env.NODE_ENV = JSON.parse(config.dev.env.NODE_ENV)
 }
 
-const opn = require('opn')
-const path = require('path')
+// middleweare関連--------------------------------------------------------------
 const express = require('express')
+const app = express()
+
+// webpack関連--------------------------------------------------------------------------------------
 const webpack = require('webpack')
 const webpackConfig = (process.env.NODE_ENV === 'testing' || process.env.NODE_ENV === 'production')
   ? require('./webpack.prod.conf')
   : require('./webpack.dev.conf')
 
-
-
-const app = express()
-
-// force page reload when html-webpack-plugin template changes
-// currently disabled until this is resolved:
-// https://github.com/jantimon/html-webpack-plugin/issues/680
-// compiler.plugin('compilation', function (compilation) {
-//   compilation.plugin('html-webpack-plugin-after-emit', function (data, cb) {
-//     hotMiddleware.publish({ action: 'reload' })
-//     cb()
-//   })
-// })
-
-
 const compiler = webpack(webpackConfig)
 
-// enable hot-reload and state-preserving
-// compilation error display
+const devMiddleware = require('webpack-dev-middleware')(compiler, {
+  publicPath: webpackConfig.output.publicPath,
+  quiet: true
+})
+app.use(devMiddleware)
+
 const hotMiddleware = require('webpack-hot-middleware')(compiler, {
   log: false,
   heartbeat: 2000
@@ -40,35 +31,37 @@ const hotMiddleware = require('webpack-hot-middleware')(compiler, {
 app.use(hotMiddleware)
 
 
-// proxy api requests
+// proxy関連--------------------------------------------------------------------
+const proxyOptionTable = config.dev.proxyOptionTable
 const proxyMiddleware = require('http-proxy-middleware')
-Object.keys(proxyTable).forEach(function (context) {
-  let options = proxyTable[context]
+// proxy api requests
+Object.keys(proxyOptionTable).forEach(function (context) {
+  let options = proxyOptionTable[context]
   if (typeof options === 'string') {
     options = { target: options }
   }
   app.use(proxyMiddleware(options.filter || context, options))
 })
 
-// handle fallback for HTML5 history API
-app.use(require('connect-history-api-fallback')())
-
-// serve webpack bundle output
-const devMiddleware = require('webpack-dev-middleware')(compiler, {
-  publicPath: webpackConfig.output.publicPath,
-  quiet: true
-})
-app.use(devMiddleware)
-
-// automatically open browser, if not set will be false
-const autoOpenBrowser = !!config.dev.autoOpenBrowser
-const port = process.env.PORT || config.dev.port
-
-// serve pure static assets
+// static assets----------------------------------------------------------------
+const path = require('path')
 const staticPath = path.posix.join(config.dev.assetsPublicPath, config.dev.assetsSubDirectory)
 app.use(staticPath, express.static('./static'))
+// HTML5 history API 非同期通信でページを更新した時に新しくURLを発行
+app.use(require('connect-history-api-fallback')())
 
+// port set---------------------------------------------------------------------
+const port = process.env.PORT || config.dev.port
 const uri = 'http://localhost:' + port
+var portfinder = require('portfinder')
+portfinder.basePort = port
+console.log('> Starting dev server...')
+
+
+// automatically open browser---------------------------------------------------
+const opn = require('opn')
+// if not set will be false
+const autoOpenBrowser = !!config.dev.autoOpenBrowser
 
 var _resolve
 var _reject
@@ -77,11 +70,6 @@ var readyPromise = new Promise((resolve, reject) => {
   _reject = reject
 })
 
-var server
-var portfinder = require('portfinder')
-portfinder.basePort = port
-
-console.log('> Starting dev server...')
 devMiddleware.waitUntilValid(() => {
   portfinder.getPort((err, port) => {
     if (err) {
@@ -94,6 +82,7 @@ devMiddleware.waitUntilValid(() => {
     if (autoOpenBrowser && process.env.NODE_ENV !== 'testing') {
       opn(uri)
     }
+    var server
     server = app.listen(port)
     _resolve()
   })
