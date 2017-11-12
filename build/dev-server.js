@@ -17,7 +17,7 @@ const webpackConfig = (process.env.NODE_ENV === 'testing' || process.env.NODE_EN
   : require('./webpack.dev.conf')
 
 const compiler = webpack(webpackConfig)
-
+// serves the files emitted from webpack over a connect server
 const devMiddleware = require('webpack-dev-middleware')(compiler, {
   publicPath: webpackConfig.output.publicPath,
   quiet: true
@@ -70,6 +70,7 @@ var readyPromise = new Promise((resolve, reject) => {
   _reject = reject
 })
 
+// waitUntilValid bulidが成功 callback
 devMiddleware.waitUntilValid(() => {
   portfinder.getPort((err, port) => {
     if (err) {
@@ -78,7 +79,6 @@ devMiddleware.waitUntilValid(() => {
     process.env.PORT = port
     var uri = 'http://localhost:' + port
     console.log('> Listening at ' + uri + '\n')
-    // when env is testing, don't need open it
     if (autoOpenBrowser && process.env.NODE_ENV !== 'testing') {
       opn(uri)
     }
